@@ -1,0 +1,23 @@
+{
+  "name": "openrouter-code-agent",
+  "displayName": "OpenRouter Code Agent",
+  "description": "An OpenRouter-powered coding agent for the current VS Code workspace.",
+  "version": "0.1.0",
+  "publisher": "local-dev",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:openrouterCodeAgent.open"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [{ "command": "openrouterCodeAgent.open", "title": "OpenRouter Code Agent: Open Agent" }],
+    "configuration": {
+      "title": "OpenRouter Code Agent",
+      "properties": {
+        "openrouterCodeAgent.maxToolRounds": {
+          "type": "number", "default": 12, "minimum": 1, "maximum": 30,
+          "description": "Maximum tool-use rounds in one agent request."
+        }
+      }
+    }
+  }
+}
