@@ -2,14 +2,20 @@
   "name": "openrouter-code-agent",
   "displayName": "OpenRouter Code Agent",
   "description": "An OpenRouter-powered coding agent for the current VS Code workspace.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "local-dev",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
-  "activationEvents": ["onCommand:openrouterCodeAgent.open"],
+  "activationEvents": ["onCommand:openrouterCodeAgent.open", "onView:openrouterCodeAgent.sidebar"],
   "main": "./extension.js",
   "contributes": {
     "commands": [{ "command": "openrouterCodeAgent.open", "title": "OpenRouter Code Agent: Open Agent" }],
+    "viewsContainers": {
+      "activitybar": [{ "id": "openrouterCodeAgent", "title": "OpenRouter Agent", "icon": "media/agent.svg" }]
+    },
+    "views": {
+      "openrouterCodeAgent": [{ "id": "openrouterCodeAgent.sidebar", "name": "Code Agent", "type": "webview" }]
+    },
     "configuration": {
       "title": "OpenRouter Code Agent",
       "properties": {

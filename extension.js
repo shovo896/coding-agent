@@ -102,18 +102,17 @@ function panelHtml(webview) {
   </script></body></html>`;
 }
 
-function activate(context) {
-  context.subscriptions.push(vscode.commands.registerCommand('openrouterCodeAgent.open', () => {
-    const panel = vscode.window.createWebviewPanel('openrouterCodeAgent', 'OpenRouter Code Agent', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
-    panel.webview.html = panelHtml(panel.webview);
-    panel.webview.onDidReceiveMessage(async m => {
+function attachAgentWebview(webview, context) {
+    webview.options = { enableScripts: true };
+    webview.html = panelHtml(webview);
+    webview.onDidReceiveMessage(async m => {
       try {
-        if (m.type === 'saveKey') { if (!m.key?.trim()) throw new Error('Paste an API key first.'); await context.secrets.store(KEY_NAME, m.key.trim()); panel.webview.postMessage({type:'status',text:'API key saved securely.'}); return; }
+        if (m.type === 'saveKey') { if (!m.key?.trim()) throw new Error('Paste an API key first.'); await context.secrets.store(KEY_NAME, m.key.trim()); webview.postMessage({type:'status',text:'API key saved securely.'}); return; }
         const key = await context.secrets.get(KEY_NAME); if (!key) throw new Error('Save your OpenRouter API key first.');
         if (m.type === 'models') {
           const r = await fetch(`${API}/models`, {headers:{Authorization:`Bearer ${key}`}}); if (!r.ok) throw new Error('Could not load models: '+r.status);
           const data = await r.json(); const models = data.data.filter(x => x.id.endsWith(':free') || (Number(x.pricing?.prompt) === 0 && Number(x.pricing?.completion) === 0)).map(x=>({id:x.id,name:x.name || x.id})).sort((a,b)=>a.name.localeCompare(b.name));
-          panel.webview.postMessage({type:'models',models}); return;
+          webview.postMessage({type:'models',models}); return;
         }
         if (m.type === 'run') {
           const root = workspaceRoot(); const model = m.model; if (!model || model.startsWith('Save a key')) throw new Error('Load and choose a free model first.');
@@ -121,16 +120,25 @@ function activate(context) {
           const messages = [{role:'system',content:system},{role:'user',content:`Workspace root: ${root}\n\nTask: ${m.task}`}];
           const max = vscode.workspace.getConfiguration('openrouterCodeAgent').get('maxToolRounds', 12);
           for (let round=0; round<max; round++) {
-            panel.webview.postMessage({type:'status',text:`Agent reasoning (${round+1}/${max})…`});
+            webview.postMessage({type:'status',text:`Agent reasoning (${round+1}/${max})…`});
             const data = await openRouter(key, {model,messages,tools,tool_choice:'auto',temperature:0.2}); const msg=data.choices?.[0]?.message; if (!msg) throw new Error('Model returned no message.');
-            messages.push(msg); if (msg.content) panel.webview.postMessage({type:'log',text:msg.content});
+            messages.push(msg); if (msg.content) webview.postMessage({type:'log',text:msg.content});
             if (!msg.tool_calls?.length) break;
-            for (const tool of msg.tool_calls) { panel.webview.postMessage({type:'log',text:`→ ${tool.function.name}(${tool.function.arguments})`}); let output; try { output=await callTool(tool.function.name,tool.function.arguments,root); } catch(e) { output='Tool error: '+e.message; } messages.push({role:'tool',tool_call_id:tool.id,content:output}); panel.webview.postMessage({type:'log',text:output.slice(0,2000)}); }
+            for (const tool of msg.tool_calls) { webview.postMessage({type:'log',text:`→ ${tool.function.name}(${tool.function.arguments})`}); let output; try { output=await callTool(tool.function.name,tool.function.arguments,root); } catch(e) { output='Tool error: '+e.message; } messages.push({role:'tool',tool_call_id:tool.id,content:output}); webview.postMessage({type:'log',text:output.slice(0,2000)}); }
           }
-          panel.webview.postMessage({type:'done'});
+          webview.postMessage({type:'done'});
         }
-      } catch (e) { panel.webview.postMessage({type:'log',text:'Error: '+e.message}); panel.webview.postMessage({type:'done'}); }
+      } catch (e) { webview.postMessage({type:'log',text:'Error: '+e.message}); webview.postMessage({type:'done'}); }
     }, null, context.subscriptions);
+}
+
+function activate(context) {
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('openrouterCodeAgent.sidebar', {
+    resolveWebviewView(view) { attachAgentWebview(view.webview, context); }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('openrouterCodeAgent.open', () => {
+    const panel = vscode.window.createWebviewPanel('openrouterCodeAgent', 'OpenRouter Code Agent', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
+    attachAgentWebview(panel.webview, context);
   }));
 }
 function deactivate() {}
